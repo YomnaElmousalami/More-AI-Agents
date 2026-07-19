@@ -9,5 +9,37 @@ import axios from 'axios';
 
 dotenv.config();
 
+const log = {
+    info: (msg, ...args) => console.log(`[INFO] ${msg}`, ...args),
+    error: (msg, ...args) => console.error(`[ERROR] ${msg}`, ...args),
+    debug: (msg, ...args) => process.env.NODE_ENV === 'development' && console.debug(`[DEBUG] ${msg}`, ...args),
 
+}
+
+class SlackAIAgent{
+    constructor() {
+        this.app = express()
+        this.slack = new App({
+            token: process.env.SLACK_BOT_TOKEN,
+            signingSecret: process.env.SLACK_SIGNING_SECRET,
+            socketMode: true,
+            appToken: process.env.SLACK_APP_TOKEN
+        });
+        this.webClient = new WebClient(process.env.SLACK_BOT_TOKEN);
+        this.openai = new ChatOpenAI({
+            model: "gpt-4",
+            temperature: 0.3,
+            apiKey: process.env.OPENAI_API_KEY
+        });
+
+        this.setupSlackEvents();
+        this.setupExpress();
+    }
+
+    setupSlackEvents() {
+        this.slack.event('team_join', async ({event} => {
+
+        }))
+    }
+}
 
