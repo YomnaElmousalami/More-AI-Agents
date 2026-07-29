@@ -187,12 +187,82 @@ class SlackAIAgent{
             {timeout: 5000});
             if (response.data.items && response.data.items.length > 0) {
                 const user = response.data.items[0];
+                return {
+                    url: user.html_url,
+                    title: `Github: ${user.login}`,
+                    content: `${user.public_repos} public repositories`,
+                    type: 'github'
+                }
             }
         }
         catch (error) {
             log.debug('GitHub search error:', error.message);
         }
         return null;
+    }
+
+    async analyzeWithAI(memberInfo, researchData) {
+        const prompt = ChatPromptTemplate.fromTemplate(`Analyze this new community member for fit with our commercial product.
+            Company: ${process.env.COMPANY_NAME || 'Your Company'}
+            Product: ${process.env.PRODUCT_NAME || 'Your Product'}
+            
+            Member:
+            - Name: {name}
+            - Email: {email}
+            - Title: {title}
+            
+            Research Data: {research}
+            
+            Provide a JSON response with:
+            - fitscore (0-100): likelihood of fit with our product
+            - insights: array of 2-4 engagement suggestions
+            - recommendations: array of 2-4 engagement suggestions
+            
+            Consider job title, company size, technical background, and budget
+            authority.`);
+
+            try{
+
+                const researchSummary = researchData.length > 0 ? 
+                researchData.map(r => `${r.title}: ${r.content}`).join(`\\n`)
+                : 'limited research data available';
+
+                const chain = prompt.pipe(this.openai);
+                const result = await chain.invoke({
+                    name: memberInfo.name,
+                    email: memberInfo.email || 'Not Provided',
+                    title: memberInfo.title || 'Not Provided',
+                    research: researchSummary
+                });
+
+                const responseText = result.content || result;
+
+                const cleanedResponse = responseText.replace(/```json|```/g, '').trim();
+
+                const analysis = JSON.parse(cleanedResponse);
+
+                return{
+                    fitScore: Math.max(0, Math.min(100, analysis.fitscore || 50)),
+                    insights: Array.isArray(analysis.insights) ? analysis.insights : ['Analysis Completed'],
+                    recommendations: Array.isArray(analysis.recommendations) ? analysis.recommendations : ['Follow up with member for more information']
+                }
+
+            } catch(error){
+                log.error('AI analysis error:', error.message);
+                return {
+                    fitScore: 50, 
+                    insights: ['unable to complete full analysis'],
+                    recommendations: ['Manual review recommended']
+
+                }
+            }
+
+    }
+
+    async postAnalysisToChannel(member, analysis, researchData) {
+        const color = analysis.fitScore >= 80 ? '#36a64f':
+        analysis.fitScore >= 60 ? '#ffb84d' :
+        analysis.fitScore >= 40 ? '#ff9500' : '#ff4444';
     }
 }
 
